@@ -15,10 +15,32 @@ from selenium.webdriver.common.by import By
 import bs4
 import re
 import argparse
+import os.path
 reload(sys)
 sys.setdefaultencoding("utf-8")
 
+def saveDictToFile(Dictp,filename):
+	with open(filename,'w') as data_json:
+		json.dump(Dictp,data_json)
 
+def readDictFromFile(filename):
+	with open(filename) as json_data_file:
+		try:
+			data = json.load(json_data_file)
+		except:
+			return dict()
+	return data
+
+
+
+
+
+def saveCookieJarToFile(cookieJar,filename):
+	saveDictToFile(requests.utils.dict_from_cookiejar(cookieJar),filename)
+
+
+def readCookieJarFromFile(filename):
+	return requests.utils.cookiejar_from_dict(readDictFromFile(filename))
 
 
 class wait_for_text_to_match(object):
@@ -44,7 +66,8 @@ class JDLogin(object):
 		self.pubKey=''
 		self.user_name=user_name
 		self.user_password=user_password
-		self.login_success=False
+		self.status_is_logined=False
+		self.reload_cookies()
 
 
 	def get_login_data(self):
@@ -56,6 +79,7 @@ class JDLogin(object):
 			
 		except TimeoutException:
 			print "Loading took too much time!"
+			return False
 			
 
 		#处理cookie
@@ -93,6 +117,7 @@ class JDLogin(object):
 		postparam = {"uuid": uuid, "eid": eid, "fp": fp, "_t": _t, "loginType": loginType, "loginname": self.user_name,
 					 "nloginpwd": encrypted_password, "chkRememberMe": 'on', "authcode": ''}
 		return  postparam
+
 	def do_login_post(self,post_data):
 		query_string = {
 			'r': random.random(),
@@ -106,7 +131,8 @@ class JDLogin(object):
 			print ret_json
 
 			if  ret_json.get('success'):
-				self.login_success=True
+				self.status_is_logined=True
+				self.save_cookies()
 				return True
 
 			else:
@@ -118,29 +144,54 @@ class JDLogin(object):
 		if response.status_code != 200:
 			return False
 		return True
+
 	def login(self):
 		post_data=self.get_login_data();
+		if post_data==False:
+			return  False
 		ret=self.do_login_post(post_data)
 		return  ret
 
-	def get_logined_cookies(self):
-		if self.login_success==True:
-			return  self.session.cookies
-		return  False
 	def is_logined(self):
 		response=self.session.get('http://i.jd.com/user/info',allow_redirects=False)
-		return not  response.is_redirect
+		status= not  response.is_redirect
+		if status ==True :
+			#现在在登录状态
+			self.status_is_logined=True
+		else:
+			self.status_is_logined = False
+		return  status
+
+
 	def get_logined_cookies(self):
 		if self.is_logined():
 			return self.session.cookies
-		return  False
+		else:
+			print u'重新登录'
+			if self.login()==True:
+				return self.session.cookies
+			return False
+
+	def save_cookies(self):
+		saveCookieJarToFile(self.session.cookies,"%s.cookie.json"%(self.user_name))
+
+	def reload_cookies(self):
+		cookiejar=None
+		file_name="%s.cookie.json"%(self.user_name)
+		if os.path.isfile(file_name):
+			cookiejar=readCookieJarFromFile(file_name)
+			self.session.cookies=cookiejar
+		if cookiejar != None:
+			self.session.cookies=cookiejar
+			print u'从文件读入cookie'
+
 
 parser = argparse.ArgumentParser(description='模拟京东登录')
 parser.add_argument('-u','--username')
 parser.add_argument('-p','--password')
 options = parser.parse_args()
-print options
 
 jdlogin=JDLogin(options.username,options.password)
-print jdlogin.login()
 print jdlogin.get_logined_cookies()
+
+
