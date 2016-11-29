@@ -67,9 +67,7 @@ class JDLogin(object):
 		self.user_name=user_name
 		self.user_password=user_password
 		self.status_is_logined=False
-		self.session.header = {
-			'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.98 Safari/537.36',
-			'ContentType': 'application/x-www-form-urlencoded',}
+		self.session.headers.update = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.98 Safari/537.36'}
 		self.reload_cookies()
 
 
