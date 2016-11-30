@@ -67,12 +67,17 @@ class JDLogin(object):
 		self.user_name=user_name
 		self.user_password=user_password
 		self.status_is_logined=False
-		self.session.headers.update = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.98 Safari/537.36'}
+		self.uuid=''
+		self.login_page="https://passport.jd.com/new/login.aspx"
+		self.session.headers.update({
+			'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.98 Safari/537.36',
+			'Referer':self.login_page
+		})
 		self.reload_cookies()
 
 
 	def get_login_data(self):
-		self.browser.get("https://passport.jd.com/new/login.aspx")
+		self.browser.get(self.login_page)
 		
 		try:
 			WebDriverWait(self.browser, 10).until(wait_for_text_to_match((By.ID, "eid"), r"^\s*\S.*"))
@@ -98,7 +103,7 @@ class JDLogin(object):
 			name = hide_fields[i]['name']
 			value = hide_fields[i]['value']
 			if name == 'uuid':
-				uuid = value
+				self.uuid = value
 			elif name == 'eid':
 				eid = value
 			elif name == 'fp':
@@ -115,8 +120,13 @@ class JDLogin(object):
 		#encrypted_password=jdlogin.browser.execute_script("var encrypt = new JSEncrypt();encrypt.setPublicKey('%s');return encrypt.encrypt('%s');" % (self.pubKey,self.user_password))
 		#这里使用原密码和加密过后的密码都是可以成功登录的
 		encrypted_password=self.user_password
-		postparam = {"uuid": uuid, "eid": eid, "fp": fp, "_t": _t, "loginType": loginType, "loginname": self.user_name,
-					 "nloginpwd": encrypted_password, "chkRememberMe": 'on', "authcode": ''}
+		authcode=''
+		if self.check_if_auth_code(self.user_name):
+			authcode = self.download_auth_code(self.uuid)
+		else:
+			print u'不需要验证码登录'
+		postparam = {"uuid": self.uuid, "eid": eid, "fp": fp, "_t": _t, "loginType": loginType, "loginname": self.user_name,
+					 "nloginpwd": encrypted_password, "chkRememberMe": 'on', "authcode": authcode}
 		return  postparam
 
 	def do_login_post(self,post_data):
@@ -141,6 +151,38 @@ class JDLogin(object):
 
 		return False
 
+	def check_if_auth_code(self, usr_name):
+		post_data = {'loginName': usr_name}
+		query_string = {'r': random.random(),'version': 2015}
+		response = self.session.post("https://passport.jd.com/uc/showAuthCode", data=post_data, params=query_string)
+		if self.is_response_status_ok(response):
+			js = json.loads(response.text[1:-1])
+			return js['verifycode']
+		print u'检查是否需要验证码API调用失败'
+		return False
+
+	def download_auth_code(self, uuid):
+		#下载验证码的时候不加Referer头永远提示验证码错误
+
+		image_file_path = os.path.join(os.getcwd(), '%s-yanzhengma.jpg'%(self.user_name))
+
+		query_string = {
+			'a': 1,
+			'acid': uuid,
+			'uid': uuid,
+			'yys': str(int(round(time.time() * 1000))),
+		}
+		response = self.session.get("https://authcode.jd.com/verify/image", params=query_string)
+		if not self.is_response_status_ok(response):
+			print u'下载验证码失败'
+			return False
+		with open(image_file_path, 'wb') as f:
+			for chunk in response.iter_content(chunk_size=1024):
+				f.write(chunk)
+
+		os.system('open ' + image_file_path)
+		return str(raw_input('请输入验证码:'))
+
 	def is_response_status_ok(self,response):
 		if response.status_code != 200:
 			return False
@@ -154,7 +196,7 @@ class JDLogin(object):
 		return  ret
 
 	def is_logined(self):
-		response=self.session.get('http://i.jd.com/user/info',allow_redirects=False)
+		response=self.session.head('http://i.jd.com/user/info',allow_redirects=False)
 		status= not  response.is_redirect
 		if status ==True :
 			#现在在登录状态
