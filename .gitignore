@@ -1,3 +1,5 @@
 .idea/
 ghostdriver.log
 *.cookie.json
+*yanzhengma*
+*.pyc

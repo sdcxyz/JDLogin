@@ -228,13 +228,14 @@ class JDLogin(object):
 			self.session.cookies=cookiejar
 			print u'从文件读入cookie'
 
+if __name__ == '__main__':
 
-parser = argparse.ArgumentParser(description='模拟京东登录')
-parser.add_argument('-u','--username')
-parser.add_argument('-p','--password')
-options = parser.parse_args()
+	parser = argparse.ArgumentParser(description='模拟京东登录')
+	parser.add_argument('-u','--username')
+	parser.add_argument('-p','--password')
+	options = parser.parse_args()
 
-jdlogin=JDLogin(options.username,options.password)
-print jdlogin.get_logined_cookies()
+	jdlogin=JDLogin(options.username,options.password)
+	print jdlogin.get_logined_cookies()
 
 
